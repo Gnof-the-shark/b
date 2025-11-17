@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Répétition Théâtre: L'Homme de la situation</title>
+    <!-- Chargement de Tailwind CSS pour un design moderne et responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Configuration de la police Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; /* Gris foncé */
+        }
+        /* Styles pour une meilleure lisibilité mobile */
+        .line-container {
+            min-height: 150px;
+        }
+        .actor-line {
+            background-color: #374151; /* Gris plus clair pour les répliques des autres */
+            color: #d1d5db;
+        }
+        /* La couleur du prompt à l'acteur change en fonction du rôle */
+        .user-prompt {
+            background-color: #10b981; /* Vert émeraude pour votre tour */
+            color: #1f2937;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        .revealed-line {
+            background-color: #fcd34d; /* Jaune pour la réplique révélée */
+            color: #1f2937;
+            font-style: italic;
+        }
+        /* Style des boutons d'action */
+        #rehearsalActions button {
+            transition: background-color 0.15s, transform 0.15s;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="p-4 sm:p-8 max-w-2xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Répétition de Scène</h1>
+            <h2 id="currentRoleDisplay" class="text-xl text-gray-400">Sélectionnez votre rôle ci-dessous.</h2>
+        </header>
+
+        <!-- Sélecteur de Rôle (Apparaît au début) -->
+        <div id="roleSelection" class="bg-gray-800 p-6 rounded-xl shadow-2xl mb-6">
+            <label for="roleSelector" class="block text-white text-lg font-semibold mb-3">Quel rôle allez-vous répéter ?</label>
+            <select id="roleSelector" class="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="" disabled selected>-- Choisissez votre personnage --</option>
+                <option value="MAXIME MAROIS">Maxime Marois</option>
+                <option value="JUDITH MAROIS">Judith Marois</option>
+                <option value="PROFESSEUR POPOVITCH">Professeur Popovitch</option>
+                <option value="AGATHE">Agathe</option>
+            </select>
+            
+            <button id="startButton" onclick="startRehearsal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition duration-150 shadow-lg w-full mt-4 disabled:opacity-50" disabled>
+                Démarrer la Répétition
+            </button>
+        </div>
+        
+        <!-- Zone de Répétition (Répliques) -->
+        <div id="rehearsalArea" class="line-container bg-gray-800 p-4 sm:p-6 rounded-xl shadow-2xl relative flex flex-col justify-center items-center hidden">
+            <p id="speaker" class="text-lg font-bold mb-3 text-red-400"></p>
+            <p id="lineText" class="text-2xl font-semibold text-white text-center leading-relaxed"></p>
+        </div>
+
+        <!-- Zone des actions de répétition (Précédent / Continuer / Recommencer) -->
+        <div id="rehearsalActions" class="flex flex-col sm:flex-row justify-between gap-4 mt-6 hidden">
+            
+            <button id="backButton" onclick="goBack()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition duration-150 shadow-lg sm:w-1/4 disabled:opacity-50">
+                Précédent
+            </button>
+            
+            <button id="actionButton" onclick="handleAction()" class="user-prompt text-xl font-extrabold py-3 px-4 rounded-xl transition duration-150 hover:bg-emerald-600 active:scale-95 shadow-xl sm:flex-grow">
+                Continuer / Révéler
+            </button>
+            
+            <button id="fullResetButton" onclick="showRoleSelection()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-xl transition duration-150 shadow-lg sm:w-1/4">
+                Recommencer
+            </button>
+        </div>
+
+        <p id="completionMessage" class="text-center text-green-400 text-2xl font-bold mt-10 hidden">
+            FIN DE LA SCÈNE ! Bravo à tous !
+        </p>
+    </div>
+
+    <script>
+        // Le script complet de la pièce, incluant les didascalies.
+        const SCRIPT = [
+            { speaker: 'MAXIME MAROIS', line: 'Snif! Comment tu fais pour manger comme ça alors que ma vie s\'écroule ?' },
+            { speaker: 'JUDITH MAROIS', line: '(la bouche pleine.) Voyons, Maxime! Il y en a d\'autres filles sur la terre!' },
+            { speaker: 'MAXIME MAROIS', line: '(se remettant à pleurer comme un bébé.) Oui, mais moi, c\'est Sandra que j\'aime, bon!' },
+            { speaker: 'JUDITH MAROIS', line: 'Franchement, Maxime! Arrête de pleurer!' },
+            { speaker: 'MAXIME MAROIS', line: 'Je peux pas, Judith! C\'est l\'acopa...l\'acapo... c\'est la fin du monde. Sandra, c\'était l\'amour de ma vie, la seule fille pour moi... pis elle me plante là pour un gars qui a une plus grosse collection de cartes de hockey que moi. C\'est épouvantable!' },
+            { speaker: 'JUDITH MAROIS', line: '(sortant un très long mouchoir de sa poche.) Tiens. Mouche-toi là, pis... (Elle accroche un journal qui traînait sur la table. Maxime se mouche bruyamment et s\'essuie le nez et les yeux. Judith tend le journal à Maxime, très maternelle.) lis un peu. Ça va te changer les idées.' },
+            { speaker: 'MAXIME MAROIS', line: '(prenant le journal et l\'ouvrant.) Judith! C\'est incroyable!' },
+            { speaker: 'JUDITH MAROIS', line: 'Quoi ?' },
+            { speaker: 'MAXIME MAROIS', line: 'Écoute: (Lisant.) «Polopopovitch: nouveau parfum bientôt disponible». (Retrouvant sa bonne humeur.) «Le savant professeur Petr-Paul (ou Petra-Paula) Popovitch, originaire de Yougoslavie, a mis au point un puissant parfum révolutionnaire pour homme qui permettra à tous les mâles humains de devenir irrésistibles à toutes les femmes et les filles. Le professeur Popovitch, qui opère un laboratoire dans la banlieue cossue de Pierkiroulnamasspamouss, termine les recherches sur sa nouvelle fragrance qui devrait se retrouver sur le marché avant la prochaine saison. Pour plus d\'informations, composez le 555-SENTBON.» (Relevant la tête vers Judith qui s\'est replongée dans son assiette.) Judith! Te rends-tu compte? Il faut que j\'appelle le professeur Pogo... Poto... (Regardant dans le journal.) Popovitch! C\'est la chance du siècle pour moi. Avec le parfum Gogo... Judo... (Regardant encore dans le journal.) Polopopovitch, peut-être que Sandra reviendrait...?' },
+            { speaker: 'JUDITH MAROIS', line: '(la bouche pleine.) Cousin, arrête de penser à Sandra.' },
+            { speaker: 'MAXIME MAROIS', line: 'Quoi?' },
+            { speaker: 'JUDITH MAROIS', line: '(après avoir avalé.) J\'ai dit: Cousin, arrête de penser à Sandra.' },
+            { speaker: 'MAXIME MAROIS', line: 'Impossible, Judith! Ce serait comme demander à un sardinier de pêcher des salmonidés.' },
+            { speaker: 'JUDITH MAROIS', line: '(relevant la tête et s\'étouffant presque.) Quoi?' },
+            { speaker: 'MAXIME MAROIS', line: 'Je vais téléphoner au professeur Photo... Tantôt... euh... Popovitch... tout de suite! (Il se dirige vers un téléphone public dans le coin du restaurant... ou prend l\'appareil de la cuisine.)' },
+            { speaker: 'JUDITH MAROIS', line: '(découragée.) Pauvre Maxime! Ses oeufs vont être froids. (Elle secoue la tête.)' },
+            { speaker: 'MAXIME MAROIS', line: '(terminant sa conversation au téléphone.) Merci, professeur Rolo... Bolo... Popovitch. J\'arrive dans le temps de le dire. (Il raccroche, exalté.) Tous mes problèmes sont réglés! (Il sort en courant. Le professeur Popovitch apparaît dans son laboratoire. Il fait des mélanges multicolores dans des éprouvettes. Ensuite, il lève une fiole au-dessus de sa tête et regarde son contenu avant de la passer sous son nez pour sentir.)' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: '(après avoir poussé un rire satanique.) Jé souis oune génie ! II né mé manqué plous qué cé méssiou Maxime pour connfirmer mes découvertes!' },
+            { speaker: 'MAXIME MAROIS', line: '(entrant en courant dans le laboratoire, essoufflé.) Professeur Cromo... Sopo... Popovitch!' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Méssiou Maxime, jé présoume?' },
+            { speaker: 'MAXIME MAROIS', line: 'C\'est moi!' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Fous n\'afez pas perdou dé temps.' },
+            { speaker: 'MAXIME MAROIS', line: 'J\'étais pas loin. Deux transferts de métro, quatre autobus, 3.6 kilomètres de course et... me voilà !' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Bien. Jé vé donc fous appliquer des échanntillonnes dé lé noufeau parfoume Polopopovitch qui fous rendra irrésistiboule aux femmes et aux filles.' },
+            { speaker: 'MAXIME MAROIS', line: '(excité et fébrile.) Oui, oui, oui, allez-y! Je suis votre homme! (Changeant tout à coup d\'attitude, inquiet, reniflant, un peu dégoûté.) Qu\'est-ce que c\'est, cette odeur-là?' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Cé l\'arôme irrésistiboule dé lé noufeau parfoume Polopopovitch, bienne soure!' },
+            { speaker: 'MAXIME MAROIS', line: '(plaçant son nez au-dessus d\'une fiole.) Ouach! Qu\'est-ce que vous avez mis là-dedans ?' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: '(reprenant la fiole et la couvrant avec sa main.) Cé t\'une sécrète professionnel. Jé puis sélément fous dire qu\'il y a des herbes des plousiors plantes, des cendrés dou folcan Otstof, lé plous haut sommet dé la Yougoslafie et... dé l\'ail, beaucoup, beaucoup d\'ail!' },
+            { speaker: 'MAXIME MAROIS', line: 'De l\'ail? Dans un parfum? Mais ça tient pas debout votre affaire! Je m\'en vais. (Il s\'apprête à sortir, mais il remarque que la porte - imaginaire - est verrouillée.)' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Fou né poufez pas, méssiou Maxime. Fous faites parti dou processous d\'expérimanntationne.' },
+            { speaker: 'MAXIME MAROIS', line: '(traumatisé.) Mais vous pouvez pas faire ça !' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Né fous inquiètez pas, méssiou Maxime. Fous allez voir: toutés les femmes et les filles font souccomber à fos charmes.' },
+            { speaker: 'MAXIME MAROIS', line: 'Avec un parfum à l\'ail? (doutant.)' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Oui. Toutes les femmes et les filles adorent l\'odor dé l\'ail. Jé vé fous appliquer lé parfoume... (Il met du parfum à Maxime qui est repoussé par l\'odeur et se bouche le nez.)' },
+            { speaker: 'MAXIME MAROIS', line: 'Ah! c\'est dégoûtant!' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Mais non, méssiou Maxime. Fous allez foir. Les résoultats sont garantis! Maintenant, fous allez fous proméner dans la roue (rue) et toutés les femmes font sé rouer (ruer) sour fous.' },
+            { speaker: 'MAXIME MAROIS', line: 'Toutes les folles vont me rouer de coups ?' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Mais non! Toutes les femmes font sé rouer (ruer) sour fous.' },
+            { speaker: 'MAXIME MAROIS', line: 'C\'est en plein ce que je disais! (Il soupire de découragement.) Moi qui croyais que tous mes problèmes amoureux disparaîtraient. J\'ai plutôt l\'impression que toutes mes chances de trouver l\'amour vont disparaître.' },
+            { speaker: 'PROFESSEUR POPOVITCH', line: 'Rendez-fous ici à la fine dé la journée, méssiou Maxime.' },
+            { speaker: 'MAXIME MAROIS', line: 'C\'est le cas de le dire. Ce parfum là va me rendre fou ! (Il sort, l\'air découragé. Il se rend au parc, marchant jusqu\'à un banc. Il s\'assoit, défait.) Ça marchera jamais, ce parfum-là! Ça sent le petit canard à la patte cassée. (Agathe, une très jolie fille, arrive dans le parc. Maxime l\'aperçoit au loin.) Wow! Je pense que j\'ai jamais vu une aussi belle fille de toute ma vie. Elle est encore plus belle que Sandra. Ah non! c\'est vrai! Je sens comme le fond du conteneur derrière un restaurant grec! (Agathe s\'approche de lui. Maxime tente de faire comme s\'il ne l\'avait pas vue. Étrange bruit d\'attirance chimique instantanée. Si on ne dispose pas d\'effet sonore, Agathe peut simuler l\'attirance par son attitude.)' },
+            { speaker: 'AGATHE', line: '(s\'approchant de Maxime comme un aimant.) Bonjour, jeune homme irrésistible. Je m\'appelle Agathe. Et toi?' },
+            { speaker: 'MAXIME MAROIS', line: 'Euh... Maxime. (En aparte.) Ça marche ?' },
+            { speaker: 'AGATHE', line: '(s\'assoyant très près de Maxime.) Est-ce que tu viens souvent ici?' },
+            { speaker: 'MAXIME MAROIS', line: 'Euh... pas tellement, non. Toi ?' },
+            { speaker: 'AGATHE', line: 'Oui. Je viens écouter les oiseaux chanter, nourrir les écureuils et visiter le musée qui est tout près d\'ici.' },
+            { speaker: 'MAXIME MAROIS', line: '(très heureux.) Un musée? Près d\'ici? Tu aimes les musées ?' },
+            { speaker: 'AGATHE', line: 'J\'adore! Et souvent, je vais au magasin à côté acheter des cartes de hockey pour ma collection.' },
+            { speaker: 'MAXIME MAROIS', line: 'Tu fais une collection de cartes de hockey ? C\'est extraordinaire! Moi aussi !' },
+            { speaker: 'AGATHE', line: 'C\'est fantastique! Et tu sens tellement bon !' },
+            { speaker: 'MAXIME MAROIS', line: 'Ah oui?' },
+            { speaker: 'AGATHE', line: 'Oui! Est-ce que je peux t\'embrasser?' },
+            { speaker: 'MAXIME MAROIS', line: '(heureux, mais surpris et un peu gêné.) Hein? Euh... oui, oui. (Ils s\'approchent pour s\'embrasser, mais au moment où leurs lèvres s\'apprêtent à se toucher, Judith arrive en courant.)' },
+            { speaker: 'JUDITH MAROIS', line: 'Maxime! Enfin! Je te trouve! (Maxime et Agathe se tournent vers Judith. Maxime se lève et rejoint sa cousine, un peu contrarié.)' },
+            { speaker: 'MAXIME MAROIS', line: 'Judith! Tu me déranges, là! (Tout heureux.) Le parfum du professeur Pipo... Copo... Popovitch fonctionne! Je pense que j\'ai rencontré la fille de ma vie! Agathe est tellement merveilleuse. Elle adore les musées, elle collectionne les cartes de hockey et elle est belle comme une déesse. C\'est fantastique!' },
+            { speaker: 'JUDITH MAROIS', line: 'Voyons, Maxime! Tu la connais à peine. Tu vas quand même pas... (Même bruit d\'attirance chimique instantanée ou même attitude de Judith que celle d\'Agathe. Judith devient comme en transe, amoureuse.) Oh, Maxime! Tu es tellement beau! Est-ce que je peux t\'embrasser?' },
+            { speaker: 'MAXIME MAROIS', line: '(surpris.) Quoi? Judith?' },
+            { speaker: 'JUDITH MAROIS', line: 'Maxime! Tu es l\'homme de ma vie. Laisse-moi t\'embrasser sinon je mourrai de la pire peine d\'amour de l\'histoire de l\'humanité !' },
+            { speaker: 'MAXIME MAROIS', line: 'Ben voyons, Judith! Je suis ton cousin! On peut pas s\'embrasser. As-tu perdu la boule?' },
+            { speaker: 'JUDITH MAROIS', line: 'Non, Maxime! Tu es ton parfum, je ne peux plus m\'arrêter de résister.' },
+            { speaker: 'MAXIME MAROIS', line: '(surpris, puis terrorisé.) Non. Ahhhhhh! Professeur Bozo... Bongo... Popovitch! (Il se sauve en courant.) À l\'aide!!!' },
+            { speaker: 'JUDITH MAROIS', line: '(poursuivant Maxime et se jetant sur lui.) Ahhhhhh Popovitch!' },
+            { speaker: 'MAXIME MAROIS', line: '(s\'arrêtant, le souffle coupé, et repoussant Judith.) Judith, arrête! Je pense que j\'aime Agathe! Au secours !!! (Ils se chicanent. Maxime recule et Judith avance.) Faut mieux être seul.' },
+            { speaker: 'JUDITH MAROIS', line: 'Ne me quitte pas, Maxime!' },
+            { speaker: 'MAXIME MAROIS', line: '(tournant le dos à Judith et s\'adressant au public.) Ben voyons les épaules et...' },
+            { speaker: 'JUDITH MAROIS', line: '(le suivant.) Ici, moi ? (Elle hausse les épaules.)' },
+            { speaker: 'MAXIME MAROIS', line: '(voyant Judith qui veut l\'embrasser.) Non, Maxime! Faut que j\'aille me laver, Judith! Fais-toi un peu moins irrésistible. Agathe reste seule, courant.' },
+            { speaker: 'AGATHE', line: '(sortant de sa transe, confuse.) Qu\'est-ce que je faisais ici?' },
+            { speaker: 'FIN', line: 'FIN' },
+        ];
+
+        let YOUR_ROLE = null; // Sera défini après la sélection
+        let currentLineIndex = 0;
+        let isRehearsing = false;
+        let isWaitingForUser = false; // Vrai quand c'est le tour de l'acteur de parler
+
+        const roleSelector = document.getElementById('roleSelector');
+        const startButton = document.getElementById('startButton');
+        const currentRoleDisplay = document.getElementById('currentRoleDisplay');
+        const roleSelectionArea = document.getElementById('roleSelection');
+
+        const rehearsalArea = document.getElementById('rehearsalArea');
+        const speakerElement = document.getElementById('speaker');
+        const lineTextElement = document.getElementById('lineText');
+        
+        const actionButton = document.getElementById('actionButton');
+        const backButton = document.getElementById('backButton');
+        const rehearsalActions = document.getElementById('rehearsalActions');
+        const completionMessage = document.getElementById('completionMessage');
+
+        // Écouteur pour activer le bouton Démarrer si un rôle est sélectionné
+        roleSelector.addEventListener('change', () => {
+            if (roleSelector.value) {
+                startButton.disabled = false;
+            } else {
+                startButton.disabled = true;
+            }
+        });
+
+        /**
+         * Affiche la zone de sélection de rôle et réinitialise tout.
+         */
+        function showRoleSelection() {
+            isRehearsing = false;
+            currentLineIndex = 0;
+            isWaitingForUser = false;
+            YOUR_ROLE = null;
+
+            roleSelectionArea.classList.remove('hidden');
+            rehearsalArea.classList.add('hidden');
+            rehearsalActions.classList.add('hidden');
+            completionMessage.classList.add('hidden');
+            startButton.disabled = !roleSelector.value;
+            currentRoleDisplay.textContent = 'Sélectionnez votre rôle ci-dessous.';
+        }
+
+
+        /**
+         * Démarre le processus de répétition.
+         */
+        function startRehearsal() {
+            if (!roleSelector.value) return;
+
+            YOUR_ROLE = roleSelector.value;
+            isRehearsing = true;
+            currentLineIndex = 0;
+            
+            // Mettre à jour l'affichage du rôle
+            currentRoleDisplay.textContent = `Vous répétez le rôle de : ${YOUR_ROLE}`;
+
+            // Masquer le sélecteur, afficher la zone de répétition et les boutons d'action
+            roleSelectionArea.classList.add('hidden');
+            rehearsalArea.classList.remove('hidden');
+            rehearsalActions.classList.remove('hidden');
+            completionMessage.classList.add('hidden');
+            
+            lineTextElement.classList.remove('revealed-line');
+
+            nextLine();
+        }
+
+        /**
+         * Met à jour l'état du bouton "Précédent" (désactivé si au début du script).
+         */
+        function updateBackButtonState() {
+            // Désactiver le bouton si on est à la toute première ligne (index 0)
+            backButton.disabled = currentLineIndex <= 1;
+        }
+
+        /**
+         * Passe à la ligne suivante du script.
+         */
+        function nextLine() {
+            if (!isRehearsing) return;
+
+            if (currentLineIndex >= SCRIPT.length - 1) {
+                // Fin de la pièce (index - 1 car la dernière entrée est 'FIN')
+                rehearsalArea.classList.add('hidden');
+                rehearsalActions.classList.add('hidden');
+                completionMessage.classList.remove('hidden');
+                isRehearsing = false;
+                return;
+            }
+
+            const currentLine = SCRIPT[currentLineIndex];
+            currentLineIndex++;
+            
+            lineTextElement.classList.remove('revealed-line'); // Nettoyer la couleur de la ligne précédente
+            isWaitingForUser = false;
+            updateBackButtonState(); 
+
+            if (currentLine.speaker === YOUR_ROLE) {
+                // C'est la réplique de l'utilisateur
+                isWaitingForUser = true;
+                speakerElement.textContent = `Votre tour (${YOUR_ROLE})`;
+                lineTextElement.textContent = 'Réciter votre réplique...';
+                rehearsalArea.classList.add('user-prompt');
+                rehearsalArea.classList.remove('actor-line');
+                
+                actionButton.textContent = 'À vous ! (Cliquez/Tapez pour révéler la réplique)';
+            } else {
+                // C'est la réplique d'un autre personnage (partenaire)
+                speakerElement.textContent = currentLine.speaker + ' dit :';
+                lineTextElement.textContent = currentLine.line;
+                rehearsalArea.classList.remove('user-prompt');
+                rehearsalArea.classList.add('actor-line');
+                actionButton.textContent = 'Continuer';
+            }
+        }
+
+        /**
+         * Gère le clic sur le bouton d'action (Continuer/Révéler).
+         */
+        function handleAction() {
+            if (!isRehearsing) return;
+            
+            if (isWaitingForUser) {
+                // Étape 1: L'utilisateur a cliqué pour voir sa réplique (Triche !)
+                // currentLineIndex pointe sur la ligne *suivante*, donc on utilise index - 1 pour la ligne actuelle
+                const previousLine = SCRIPT[currentLineIndex - 1]; 
+                speakerElement.textContent = previousLine.speaker + ' (RÉVÉLÉ) :';
+                lineTextElement.textContent = previousLine.line;
+                lineTextElement.classList.add('revealed-line'); // Couleur pour la réplique révélée
+                actionButton.textContent = 'Continuer la pièce';
+                isWaitingForUser = false; // Prêt à passer à la ligne suivante
+            } else {
+                // Étape 2: L'utilisateur a lu la réplique du partenaire ou a vu la sienne, on passe à la suite.
+                nextLine();
+            }
+        }
+        
+        /**
+         * Retourne à la ligne précédente du script.
+         */
+        function goBack() {
+            if (!isRehearsing || currentLineIndex <= 1) return;
+            
+            // Pour revenir à la ligne affichée juste avant la ligne actuelle,
+            // on recule de 2 index pour se positionner sur la ligne à afficher, 
+            // car nextLine() incrémente l'index de 1.
+            currentLineIndex = currentLineIndex - 2; 
+            
+            // Réactiver la zone de répétition si on revenait de l'écran de fin
+            completionMessage.classList.add('hidden');
+            rehearsalArea.classList.remove('hidden');
+
+            nextLine();
+        }
+        
+        // Initialisation : Afficher le sélecteur de rôle au chargement.
+        document.addEventListener('DOMContentLoaded', () => {
+            rehearsalArea.classList.add('actor-line');
+            showRoleSelection(); // Afficher la sélection de rôle au début
+        });
+    </script>
+
+</body>
+</html>
